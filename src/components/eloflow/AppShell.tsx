@@ -92,6 +92,12 @@ const AREA_LABEL: Record<Role, string> = {
   especialista: "Área do especialista",
 };
 
+const HOME_PATH: Record<Role, "/candidato" | "/empresa" | "/especialista"> = {
+  candidato: "/candidato",
+  empresa: "/empresa",
+  especialista: "/especialista",
+};
+
 function isGroupActive(pathname: string, routes: string[]) {
   return routes.some((route) => {
     if (pathname === route) return true;
@@ -112,7 +118,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-sand-light">
       <div className="mx-auto flex w-full max-w-[1400px]">
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-sand-light px-5 py-6 lg:flex">
-          <Link to="/">
+          <Link to={HOME_PATH[role]}>
             <Logo />
           </Link>
 
@@ -163,7 +169,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="min-w-0 flex-1">
           <header className="flex items-center justify-between border-b border-border bg-background/80 px-5 py-3 backdrop-blur lg:hidden">
-            <Logo size={32} />
+            <Link to={HOME_PATH[role]}>
+              <Logo size={32} />
+            </Link>
 
             <Button
               variant="ghost"
