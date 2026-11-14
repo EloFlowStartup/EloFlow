@@ -21,7 +21,7 @@ export function Logo({
         style={{ width: size, height: size }}
       />
       {withWordmark ? (
-        <span className="text-display text-[1.05rem] leading-none text-primary">eloflow</span>
+        <span className="text-display text-[1.05rem] leading-none text-primary">Eloflow</span>
       ) : null}
     </span>
   );
