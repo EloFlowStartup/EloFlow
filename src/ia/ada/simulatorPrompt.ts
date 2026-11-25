@@ -1,4 +1,3 @@
-
 import type { EntrevistaEmpresa } from "./index";
 
 export function criarPromptSimulador(
@@ -26,6 +25,27 @@ ENTREVISTA DA EMPRESA:
 
 ${JSON.stringify(entrevista, null, 2)}
 
-Retorne um simulador estruturado em JSON.
+FORMATO DE RESPOSTA OBRIGATÓRIO (JSON):
+
+Retorne exclusivamente um objeto JSON válido seguindo exatamente esta estrutura:
+
+{
+  "titulo": "Título curto e prático da simulação baseado na vaga",
+  "objetivo": "Objetivo geral da simulação e o que ela avalia no candidato",
+  "contexto": "Cenário fictício realista apresentando a empresa e o dia a dia da vaga",
+  "tarefas": [
+    {
+      "titulo": "Nome objetivo da tarefa prática",
+      "descricao": "Explicação da situação, do objetivo da tarefa e do que o candidato precisa resolver",
+      "dadosFicticios": {
+        "exemploChave": "Dados fictícios de apoio para o candidato executar a tarefa"
+      },
+      "habilidadesAvaliadas": [
+        "Habilidade 1",
+        "Habilidade 2"
+      ]
+    }
+  ]
+}
 `;
 }

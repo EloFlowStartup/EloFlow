@@ -16,10 +16,17 @@ import {
 } from "@/components/eloflow/ui";
 import { supabase } from "@/integrations/supabase/client";
 import { asDna, unwrap } from "@/lib/data";
-import { buildRoutineDay, evaluateRoutine, type RoutineAnswers } from "@/lib/routine";
+import {
+  buildRoutineDay,
+  evaluateRoutine,
+  type RoutineAnswers,
+  type RoutineDay,
+} from "@/lib/routine";
 import { useAuth } from "@/hooks/useAuth";
 import { useStage3Open } from "@/hooks/useCandidateStages";
 import { cn } from "@/lib/utils";
+import { montarEntrevistaDeVaga, type SimuladorAda } from "@/ia/ada";
+import { gerarSimuladorAda } from "@/ia/ada/groq.functions";
 
 export const Route = createFileRoute("/_authenticated/candidato/simulador")({
   component: RoutineSimulator,
@@ -34,6 +41,43 @@ type JobRow = {
   companies: { name: string } | null;
 };
 
+function adaptarAdaParaRoutineDay(
+  ada: SimuladorAda,
+  baseDay: RoutineDay,
+): RoutineDay {
+  const horarios = ["09:00", "11:00", "14:00", "16:00"];
+  const dadosFormatados = (dados: Record<string, unknown>) => {
+    const entries = Object.entries(dados);
+    if (entries.length === 0) return "";
+    return `\n\nDados fictícios:\n${entries
+      .map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+      .join("\n")}`;
+  };
+
+  const tasks: RoutineDay["tasks"] = ada.tarefas.map((t, index) => {
+    const time = horarios[index % horarios.length] ?? "10:00";
+    const skillsLabel =
+      t.habilidadesAvaliadas.length > 0
+        ? `Habilidades avaliadas: ${t.habilidadesAvaliadas.join(", ")}.`
+        : "Descreva como você executaria essa tarefa na prática.";
+
+    return {
+      kind: "text",
+      time,
+      title: t.titulo,
+      context: `${t.descricao}${dadosFormatados(t.dadosFicticios)}`,
+      hint: `${ada.objetivo} — ${skillsLabel}`,
+    };
+  });
+
+  return {
+    ...baseDay,
+    title: ada.titulo,
+    intro: `${ada.contexto} — ${ada.objetivo}`,
+    tasks: tasks.length > 0 ? tasks : baseDay.tasks,
+  };
+}
+
 function RoutineSimulator() {
   const { identity } = useAuth();
   const candidateId = identity?.id ?? "";
@@ -46,6 +90,8 @@ function RoutineSimulator() {
   const [choices, setChoices] = useState<Record<number, number>>({});
   const [note, setNote] = useState("");
   const [result, setResult] = useState<{ score: number; feedback: string } | null>(null);
+  const [adaDay, setAdaDay] = useState<RoutineDay | null>(null);
+  const [gerandoAda, setGerandoAda] = useState(false);
 
   const [proctorOn, setProctorOn] = useState(false);
   const [proctorError, setProctorError] = useState<string | null>(null);
@@ -83,7 +129,6 @@ function RoutineSimulator() {
     }
   }, [proctorOn, jobId, step, result]);
 
-
   const jobs = useQuery({
     queryKey: ["routine-jobs", candidateId],
     queryFn: async () => {
@@ -104,7 +149,7 @@ function RoutineSimulator() {
 
   const job = jobs.data?.find((j) => j.id === jobId) ?? null;
 
-  const day = useMemo(
+  const fallbackDay = useMemo(
     () =>
       job
         ? buildRoutineDay({
@@ -117,6 +162,45 @@ function RoutineSimulator() {
         : null,
     [job],
   );
+
+  const selecionarVaga = async (selectedJob: JobRow) => {
+    setStep(0);
+    setOrder([]);
+    setChoices({});
+    setNote("");
+    setResult(null);
+    setAdaDay(null);
+    setJobId(selectedJob.id);
+
+    const base = buildRoutineDay({
+      title: selectedJob.title,
+      area: selectedJob.area,
+      seniority: selectedJob.seniority,
+      dna: asDna(selectedJob.dna),
+      companyName: selectedJob.companies?.name ?? null,
+    });
+
+    setGerandoAda(true);
+    try {
+      const entrevista = montarEntrevistaDeVaga({
+        title: selectedJob.title,
+        area: selectedJob.area,
+        seniority: selectedJob.seniority,
+        companyName: selectedJob.companies?.name ?? null,
+        dna: asDna(selectedJob.dna) as never,
+      });
+
+      const simuladorGerado = await gerarSimuladorAda({ data: entrevista } as never);
+      setAdaDay(adaptarAdaParaRoutineDay(simuladorGerado, base));
+    } catch {
+      toast.info("Usando rotina base da vaga enquanto a Ada não responde.");
+      setAdaDay(base);
+    } finally {
+      setGerandoAda(false);
+    }
+  };
+
+  const day = adaDay ?? fallbackDay;
 
   const finish = useMutation({
     mutationFn: async (answers: RoutineAnswers) => {
@@ -172,6 +256,7 @@ function RoutineSimulator() {
 
   const reset = () => {
     setJobId(null);
+    setAdaDay(null);
     setStep(0);
     setOrder([]);
     setChoices({});
@@ -179,7 +264,7 @@ function RoutineSimulator() {
     setResult(null);
   };
 
-  if (jobs.isLoading || stage3.isLoading) return <Loading />;
+  if (jobs.isLoading || stage3.isLoading || gerandoAda) return <Loading />;
   if (jobs.isError) return <ErrorState message={jobs.error.message} />;
 
   if (!stage3.open) {
@@ -262,7 +347,6 @@ function RoutineSimulator() {
     );
   }
 
-
   const proctorOverlay = (
     <div className="fixed bottom-4 right-4 z-50 w-40 overflow-hidden rounded-xl border border-border bg-foreground/90 shadow-lg">
       <video ref={videoRef} muted playsInline className="h-28 w-full object-cover" />
@@ -326,14 +410,14 @@ function RoutineSimulator() {
               <p className="text-sm text-muted-foreground">
                 {item.area ?? "Operação"} · {item.seniority ?? "Pleno"}
               </p>
-              <Button size="sm" className="mt-4" onClick={() => setJobId(item.id)}>
+              <Button size="sm" className="mt-4" onClick={() => void selecionarVaga(item)}>
                 Começar o dia
               </Button>
             </article>
           ))}
         </div>
         <MockNotice>
-          Rotina e avaliação geradas por IA de demonstração a partir dos dados reais da vaga.
+          Simulação gerada pela Ada via Groq com fallback local e salva no Supabase.
         </MockNotice>
         {proctorOverlay}
       </>
@@ -388,7 +472,9 @@ function RoutineSimulator() {
           <div>
             <p className="eyebrow">{task.time}</p>
             <h2 className="text-display mt-1 text-xl leading-snug">{task.title}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{task.context}</p>
+            <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">
+              {task.context}
+            </p>
           </div>
 
           {task.kind === "choice" && task.code ? (
