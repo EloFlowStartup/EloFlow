@@ -50,7 +50,15 @@ function adaptarAdaParaRoutineDay(
     const entries = Object.entries(dados);
     if (entries.length === 0) return "";
     return `\n\nDados fictícios:\n${entries
-      .map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+      .map(([k, v]) => {
+        if (Array.isArray(v)) {
+          if (v.length === 0) return `- ${k}: —`;
+          return `- ${k}:\n${v.map((item) => `  • ${String(item)}`).join("\n")}`;
+        }
+        if (typeof v === "boolean") return `- ${k}: ${v ? "Sim" : "Não"}`;
+        if (v === null || v === undefined) return `- ${k}: —`;
+        return `- ${k}: ${typeof v === "string" ? v : String(v)}`;
+      })
       .join("\n")}`;
   };
 
@@ -88,7 +96,7 @@ function RoutineSimulator() {
   const [step, setStep] = useState(0);
   const [order, setOrder] = useState<string[]>([]);
   const [choices, setChoices] = useState<Record<number, number>>({});
-  const [note, setNote] = useState("");
+  const [notes, setNotes] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{ score: number; feedback: string } | null>(null);
   const [adaDay, setAdaDay] = useState<RoutineDay | null>(null);
   const [gerandoAda, setGerandoAda] = useState(false);
@@ -167,7 +175,7 @@ function RoutineSimulator() {
     setStep(0);
     setOrder([]);
     setChoices({});
-    setNote("");
+    setNotes({});
     setResult(null);
     setAdaDay(null);
     setJobId(selectedJob.id);
@@ -265,7 +273,7 @@ function RoutineSimulator() {
     setStep(0);
     setOrder([]);
     setChoices({});
-    setNote("");
+    setNotes({});
     setResult(null);
   };
 
@@ -432,12 +440,13 @@ function RoutineSimulator() {
   const task = day.tasks[step];
   if (!task) return <Loading />;
   const isLast = step === day.tasks.length - 1;
+  const currentNote = notes[step] ?? "";
   const canAdvance =
     task.kind === "priority"
       ? order.length === task.items.length
       : task.kind === "choice"
         ? typeof choices[step] === "number"
-        : note.trim().length > 0;
+        : currentNote.trim().length > 0;
 
   return (
     <>
@@ -554,8 +563,8 @@ function RoutineSimulator() {
             <div className="space-y-2">
               <Textarea
                 rows={7}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
+                value={currentNote}
+                onChange={(e) => setNotes((prev) => ({ ...prev, [step]: e.target.value }))}
                 placeholder={task.hint}
               />
               <p className="text-xs text-muted-foreground">{task.hint}</p>
@@ -571,7 +580,7 @@ function RoutineSimulator() {
                   setStep(step + 1);
                   return;
                 }
-                finish.mutate({ order, choices, note });
+                finish.mutate({ order, choices, notes, note: currentNote });
               }}
             >
               {finish.isPending ? "Avaliando…" : isLast ? "Encerrar o dia" : "Próxima tarefa"}

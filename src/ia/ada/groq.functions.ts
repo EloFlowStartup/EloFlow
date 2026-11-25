@@ -20,6 +20,36 @@ function obterChavesGroq(): string[] {
     .filter((chave): chave is string => Boolean(chave));
 }
 
+function formatarValorLegivel(valor: unknown): string {
+  if (valor === null || valor === undefined) {
+    return "—";
+  }
+
+  if (
+    typeof valor === "string" ||
+    typeof valor === "number" ||
+    typeof valor === "boolean"
+  ) {
+    return String(valor);
+  }
+
+  if (Array.isArray(valor)) {
+    return valor.map((item) => formatarValorLegivel(item)).join(", ");
+  }
+
+  if (typeof valor === "object") {
+    const entries = Object.entries(valor as Record<string, unknown>);
+    if (entries.length === 0) {
+      return "{}";
+    }
+    return entries
+      .map(([k, v]) => `${k}: ${formatarValorLegivel(v)}`)
+      .join(" · ");
+  }
+
+  return String(valor);
+}
+
 function normalizarDadosFicticios(
   raw: unknown,
 ): Record<string, ValorSerializavel> {
@@ -38,9 +68,13 @@ function normalizarDadosFicticios(
     ) {
       resultado[chave] = valor;
     } else if (Array.isArray(valor)) {
-      resultado[chave] = valor.map((item) => String(item));
+      resultado[chave] = valor.map((item) =>
+        typeof item === "object" && item !== null
+          ? formatarValorLegivel(item)
+          : String(item),
+      );
     } else if (typeof valor === "object" && valor !== undefined) {
-      resultado[chave] = JSON.stringify(valor);
+      resultado[chave] = formatarValorLegivel(valor);
     }
   }
 

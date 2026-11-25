@@ -337,7 +337,8 @@ export function buildRoutineDay(job: JobLike): RoutineDay {
 export type RoutineAnswers = {
   order?: string[];
   choices: Record<number, number>;
-  note: string;
+  notes?: Record<number, string>;
+  note?: string;
 };
 
 export function evaluateRoutine(day: RoutineDay, answers: RoutineAnswers) {
@@ -351,7 +352,8 @@ export function evaluateRoutine(day: RoutineDay, answers: RoutineAnswers) {
       const expected = [...task.items].sort((a, b) => a.rank - b.rank).map((i) => i.id);
       const given = answers.order ?? [];
       const hits = expected.filter((id, i) => given[i] === id).length;
-      const points = hits === expected.length ? 3 : hits >= expected.length - 1 ? 2 : 1;
+      const points =
+        given.length === 0 ? 0 : hits === expected.length ? 3 : hits >= 1 ? 2 : 1;
       earned += points;
       highlights.push(
         points === 3
@@ -360,7 +362,8 @@ export function evaluateRoutine(day: RoutineDay, answers: RoutineAnswers) {
       );
     }
     if (task.kind === "choice") {
-      total += 3;
+      const maxWeight = Math.max(1, ...task.options.map((o) => o.weight));
+      total += maxWeight;
       const chosen = answers.choices[index];
       const option = typeof chosen === "number" ? task.options[chosen] : undefined;
       earned += option?.weight ?? 0;
@@ -368,18 +371,20 @@ export function evaluateRoutine(day: RoutineDay, answers: RoutineAnswers) {
     }
     if (task.kind === "text") {
       total += 3;
-      const words = answers.note.trim().split(/\s+/).filter(Boolean).length;
+      const rawText = answers.notes?.[index] ?? answers.note ?? "";
+      const words = rawText.trim().split(/\s+/).filter(Boolean).length;
       const points = words >= 60 ? 3 : words >= 25 ? 2 : words > 0 ? 1 : 0;
       earned += points;
       highlights.push(
         points >= 2
           ? "Comunicação escrita com contexto e decisão explícitos."
-          : "O fechamento escrito ficou curto para mostrar contexto e decisão.",
+          : "A resposta escrita ficou curta para mostrar contexto e decisão.",
       );
     }
   });
 
-  const score = Math.round((earned / Math.max(1, total)) * 100);
+  const score =
+    total > 0 ? Math.min(100, Math.max(0, Math.round((earned / total) * 100))) : 0;
   const summary =
     score >= 80
       ? "Rotina conduzida como esperado na vaga: diagnostica, negocia escopo e comunica."

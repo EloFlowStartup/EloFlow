@@ -38,7 +38,7 @@ Retorne exclusivamente um objeto JSON válido seguindo exatamente esta estrutura
       "titulo": "Nome objetivo da tarefa prática",
       "descricao": "Explicação da situação, do objetivo da tarefa e do que o candidato precisa resolver",
       "dadosFicticios": {
-        "exemploChave": "Dados fictícios de apoio para o candidato executar a tarefa"
+        "exemploChave": "Texto, número ou lista simples de strings com dados fictícios claros e legíveis de apoio"
       },
       "habilidadesAvaliadas": [
         "Habilidade 1",
