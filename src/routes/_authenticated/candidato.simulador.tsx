@@ -192,8 +192,13 @@ function RoutineSimulator() {
 
       const simuladorGerado = await gerarSimuladorAda({ data: entrevista } as never);
       setAdaDay(adaptarAdaParaRoutineDay(simuladorGerado, base));
-    } catch {
-      toast.info("Usando rotina base da vaga enquanto a Ada não responde.");
+    } catch (erro) {
+      console.error("[Simulador] Erro ao gerar simulador com a Ada:", erro);
+      const mensagem =
+        erro instanceof Error && erro.message
+          ? erro.message
+          : "erro inesperado";
+      toast.info(`Usando rotina base da vaga: ${mensagem}`);
       setAdaDay(base);
     } finally {
       setGerandoAda(false);
